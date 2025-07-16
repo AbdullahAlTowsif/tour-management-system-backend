@@ -31,35 +31,49 @@ export const createUserTokens = (user: Partial<IUser>) => {
 
   return {
     accessToken,
-    refreshToken
-  }
+    refreshToken,
+  };
 };
 
+export const createNewAccessTokenWithRefreshToken = async (
+  refreshToken: string
+) => {
+  const verifyRefreshToken = verifyToken(
+    refreshToken,
+    envVars.JWT_REFRESH_SECRET
+  ) as JwtPayload;
 
-export const createNewAccessTokenWithRefreshToken = async (refreshToken: string) => {
-    const verifyRefreshToken = verifyToken(refreshToken, envVars.JWT_REFRESH_SECRET) as JwtPayload
+  const isUserExist = await User.findOne({ email: verifyRefreshToken.email });
 
-    const isUserExist = await User.findOne({email: verifyRefreshToken.email})
+  if (!isUserExist) {
+    throw new AppError(httpStatus.BAD_REQUEST, "User does not Exists");
+  }
 
-    if(!isUserExist) {
-        throw new AppError(httpStatus.BAD_REQUEST, "User does not Exists");
-    }
+  if (
+    isUserExist.isActive === IsActive.BLOCKED ||
+    isUserExist.isActive === IsActive.INACTIVE
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `User is ${isUserExist.isActive}`
+    );
+  }
 
-    if(isUserExist.isActive === IsActive.BLOCKED || isUserExist.isActive === IsActive.INACTIVE) {
-        throw new AppError(httpStatus.BAD_REQUEST, `User is ${isUserExist.isActive}`);
-    }
+  if (isUserExist.isDeleted) {
+    throw new AppError(httpStatus.BAD_REQUEST, "User is Deleted");
+  }
 
-    if(isUserExist.isDeleted) {
-        throw new AppError(httpStatus.BAD_REQUEST, "User is Deleted");
-    }
+  const jwtPayload = {
+    userId: isUserExist._id,
+    email: isUserExist.email,
+    role: isUserExist.role,
+  };
 
-    const jwtPayload = {
-        userId: isUserExist._id,
-        email: isUserExist.email,
-        role: isUserExist.role,
-    }
+  const accessToken = generateToken(
+    jwtPayload,
+    envVars.JWT_ACCESS_SECRET,
+    envVars.JWT_ACCESS_EXPIRES
+  );
 
-    const accessToken = generateToken(jwtPayload, envVars.JWT_ACCESS_SECRET, envVars.JWT_ACCESS_EXPIRES)
-
-    return accessToken;
-}
+  return accessToken;
+};

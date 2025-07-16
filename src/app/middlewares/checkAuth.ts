@@ -7,36 +7,48 @@ import { User } from "../modules/user/user.model";
 import httpStatus from "http-status-codes";
 import { IsActive } from "../modules/user/user.interface";
 
-
-export const checkAuth = (...authRoles: string[]) => async (req: Request, res: Response, next: NextFunction)=> {
+export const checkAuth =
+  (...authRoles: string[]) =>
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const accessToken = req.headers.authorization;
-        if(!accessToken) {
-            throw new AppError(403, "No Token Recieved")
-        }
-        const verfiedToken = verifyToken(accessToken, envVars.JWT_ACCESS_SECRET) as JwtPayload;
+      const accessToken = req.headers.authorization;
 
-        const isUserExist = await User.findOne({email: verfiedToken.email})
+      if (!accessToken) {
+        throw new AppError(403, "No Token Recieved");
+      }
+      const verfiedToken = verifyToken(
+        accessToken,
+        envVars.JWT_ACCESS_SECRET
+      ) as JwtPayload;
 
-    if(!isUserExist) {
+      const isUserExist = await User.findOne({ email: verfiedToken.email });
+
+      if (!isUserExist) {
         throw new AppError(httpStatus.BAD_REQUEST, "User does not Exists");
-    }
+      }
 
-    if(isUserExist.isActive === IsActive.BLOCKED || isUserExist.isActive === IsActive.INACTIVE) {
-        throw new AppError(httpStatus.BAD_REQUEST, `User is ${isUserExist.isActive}`);
-    }
+      if (
+        isUserExist.isActive === IsActive.BLOCKED ||
+        isUserExist.isActive === IsActive.INACTIVE
+      ) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `User is ${isUserExist.isActive}`
+        );
+      }
 
-    if(isUserExist.isDeleted) {
+      if (isUserExist.isDeleted) {
         throw new AppError(httpStatus.BAD_REQUEST, "User is Deleted");
-    }
+      }
 
-        if(!authRoles.includes(verfiedToken.role)) {
-            throw new AppError(403, "You are not permitted to view this route")
-        }
+      if (!authRoles.includes(verfiedToken.role)) {
+        throw new AppError(403, "You are not permitted to view this route");
+      }
 
-        req.user = verfiedToken
-        next()
+      req.user = verfiedToken;
+      next();
     } catch (error) {
-        next(error);
+      // console.log("jwt error", error);
+      next(error);
     }
-}
+  };
