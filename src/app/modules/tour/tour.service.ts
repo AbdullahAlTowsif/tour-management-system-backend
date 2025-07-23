@@ -1,4 +1,5 @@
 
+import { deleteImageFromCloudinary } from "../../config/cloudinary.config";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { tourSearchableFields, tourTypeSearchableFields } from "./tour.constant";
 import { ITour, ITourType } from "./tour.interface";
@@ -147,7 +148,32 @@ const updateTour = async (id: string, payload: Partial<ITour>) => {
     //     payload.slug = slug
     // }
 
+    // adding new images
+    if(payload.images && payload.images.length > 0 && existingTour.images && existingTour.images.length > 0) {
+        payload.images = [...payload.images, ...existingTour.images]
+    }
+
+    // this case is when a user wants to update (adding new images and deleting some old images) --> MONGODB
+    if(payload.deleteImages && payload.deleteImages.length > 0 && existingTour.images && existingTour.images.length > 0) {
+        // removing the deleted image so we can get the rest image from db
+        const restDBImages = existingTour.images.filter(imageUrl => !payload.deleteImages?.includes(imageUrl))
+
+        // we get only the new added image
+        const updatedPayloadImages = (payload.images || [])
+        .filter(imageUrl => !payload.deleteImages?.includes(imageUrl)) // removing the deleted image
+        .filter(imageUrl => !restDBImages.includes(imageUrl)) // removing the non deleted image
+
+        // now we are getting the rest images from db and updated images means only the new added images
+        payload.images = [...restDBImages, ...updatedPayloadImages];
+    }
+
     const updatedTour = await Tour.findByIdAndUpdate(id, payload, { new: true });
+
+    // now we are updating the CLOUDINARY once we update in database
+    // N.B: do this only after when you already updated the database
+    if(payload.deleteImages && payload.deleteImages.length > 0 && existingTour.images && existingTour.images.length > 0) {
+        await Promise.all(payload.deleteImages.map(url => deleteImageFromCloudinary(url)))
+    }
 
     return updatedTour;
 };

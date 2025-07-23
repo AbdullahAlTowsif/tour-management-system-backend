@@ -9,10 +9,8 @@ import AppError from "../../errorHelpers/AppError";
 import { Tour } from "../tour/tour.model";
 import { ISSLCommerz } from "../sslCommerz/sslCommerz.interface";
 import { SSLService } from "../sslCommerz/sslCommerz.service";
+import { getTransactionId } from "../../utils/getTransactionId";
 
-const getTransactionId = () => {
-  return `tran_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-};
 
 /**
  * Duplicate DB Collections / replica
@@ -136,3 +134,5 @@ export const BookingService = {
   updateBookingStatus,
   getAllBookings,
 };
+
+// task: complete the incomplete
