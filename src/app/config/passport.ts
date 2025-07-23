@@ -8,7 +8,7 @@ import {
 } from "passport-google-oauth20";
 import { envVars } from "./env";
 import { User } from "../modules/user/user.model";
-import { Role } from "../modules/user/user.interface";
+import { IsActive, Role } from "../modules/user/user.interface";
 import { Strategy as LocalStrategy } from "passport-local";
 import bcryptjs from "bcryptjs";
 
@@ -26,14 +26,40 @@ passport.use(
         //   return done(null, false, { message: "User doesn't Exists" });
         // }
 
-        if(!isUserExist) {
-            return done("User doesn't Exists");
+        if (!isUserExist) {
+          return done("User doesn't Exists");
         }
 
-        const isGoogleAuthenticated = isUserExist.auths.some(providerObjects => providerObjects.provider == "google");
+        if (!isUserExist.isVerified) {
+          // throw new AppError(httpStatus.BAD_REQUEST, "User is not Verified");
+          return done("User is not Verified");
+        }
 
-        if(isGoogleAuthenticated && !isUserExist.password) {
-            return done(null, false, {message: "You have authenticated via Google. If you want to login with credentials, then at first login with goolge and set a password for your Gmail and then you can login with email and password"});
+        if (
+          isUserExist.isActive === IsActive.BLOCKED ||
+          isUserExist.isActive === IsActive.INACTIVE
+        ) {
+          // throw new AppError(
+          //   httpStatus.BAD_REQUEST,
+          //   `User is ${isUserExist.isActive}`
+          // );
+          return done(`User is ${isUserExist.isActive}`);
+        }
+
+        if (isUserExist.isDeleted) {
+          // throw new AppError(httpStatus.BAD_REQUEST, "User is Deleted");
+          return done("User is Deleted");
+        }
+
+        const isGoogleAuthenticated = isUserExist.auths.some(
+          (providerObjects) => providerObjects.provider == "google"
+        );
+
+        if (isGoogleAuthenticated && !isUserExist.password) {
+          return done(null, false, {
+            message:
+              "You have authenticated via Google. If you want to login with credentials, then at first login with goolge and set a password for your Gmail and then you can login with email and password",
+          });
         }
 
         const isPasswordMatched = await bcryptjs.compare(
@@ -46,7 +72,6 @@ passport.use(
         }
 
         return done(null, isUserExist);
-
       } catch (error) {
         // console.log(error);
         done(error);
@@ -74,9 +99,32 @@ passport.use(
           return done(null, false, { message: "No email found" });
         }
 
-        let user = await User.findOne({ email });
-        if (!user) {
-          user = await User.create({
+        let isUserExist = await User.findOne({ email });
+
+        if (isUserExist && !isUserExist.isVerified) {
+          // throw new AppError(httpStatus.BAD_REQUEST, "User is not Verified");
+          // done("User is not Verified");
+          return done(null, false, {message: "User is not Verified"})
+        }
+
+        if (
+          isUserExist &&
+          (isUserExist.isActive === IsActive.BLOCKED || isUserExist.isActive === IsActive.INACTIVE)
+        ) {
+          // throw new AppError(
+          //   httpStatus.BAD_REQUEST,
+          //   `User is ${isUserExist.isActive}`
+          // );
+          done(`User is ${isUserExist.isActive}`);
+        }
+
+        if (isUserExist && isUserExist.isDeleted) {
+          return done(null, false, {message: "User is deleted"});
+          // done("User is Deleted");
+        }
+
+        if (!isUserExist) {
+          isUserExist = await User.create({
             email,
             name: profile.displayName,
             picture: profile.photos?.[0].value,
@@ -90,7 +138,7 @@ passport.use(
             ],
           });
         }
-        return done(null, user);
+        return done(null, isUserExist);
       } catch (error) {
         // console.log("Google Strategy Error", error);
         return done(error);
